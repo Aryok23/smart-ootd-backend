@@ -1,0 +1,38 @@
+# Dependencies
+# This directory contains all your installed npm packages.
+# It can be huge and should be re-created by running 'npm install'
+/node_modules
+
+# Environment Variables
+# This file contains API keys, database passwords, and other secrets.
+# NEVER commit this file to a public repository!
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# Logs
+# Log files are generated at runtime and should not be tracked.
+logs
+*.log
+npm-debug.log*
+yarn-error.log
+yarn-debug.log*
+
+# Build output
+# If you are using TypeScript or a bundler, ignore the compiled output.
+dist
+build
+.out
+
+# Test reports
+coverage
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE directories
+.vscode
+.idea
