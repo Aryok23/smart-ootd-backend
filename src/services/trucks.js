@@ -16,7 +16,7 @@ const io = new Server(server, {
 async function getAllTrucks() {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master ORDER BY id_truk ASC"
+      "SELECT * FROM truk_master ORDER BY truk_id ASC"
     );
     return result.rows;
   } catch (err) {
@@ -29,7 +29,7 @@ async function getAllTrucks() {
 async function getTruckById(id_truk) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master WHERE id_truk = $1",
+      "SELECT * FROM truk_master WHERE truk_id = $1",
       [id_truk]
     );
     return result.rows[0] || null;
@@ -62,9 +62,64 @@ async function insertTruck({
   }
 }
 
-export {
-  getAllTrucks,
-  getTruckById,
-  insertTruck,
-  
-};
+// fungsi untuk mengupdate data truk master
+async function updateTruck(id_truk, updateData) {
+  try {
+    const fields = [];
+    const values = [];
+    let index = 1;
+    for (const key in updateData) {
+      fields.push(`${key} = $${index}`);
+      values.push(updateData[key]);
+      index++;
+    }
+    values.push(id_truk);
+
+    const result = await pool.query(
+      `UPDATE truk_master SET ${fields.join(
+        ", "
+      )} WHERE truk_id = $${index} RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  } catch (err) {
+    console.error("updateTruck error:", err.message);
+    throw new Error("Failed to update truck");
+  }
+}
+
+// fungsi untuk menghapus data truk master berdasarkan ID/nomor kendaraan
+async function deleteTruckById(id_truk) {
+  try {
+    await pool.query(
+      "DELETE FROM truk_master WHERE truk_id = $1 OR nomor_kendaraan = $1",
+      [id_truk]
+    );
+  } catch (err) {
+    console.error("deleteTruckById error:", err.message);
+    throw new Error("Failed to delete truck");
+  }
+}
+
+/*Manual trigger pengukuran ulang truk berdasarkan nomor kendaraan*/
+async function manualMeasure(nomorKendaraan) {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM truk_master WHERE nomor_kendaraan = $1",
+      [nomorKendaraan]
+    );
+
+    // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
+    // await mqttClient.publish('topic/manual/measure', JSON.stringify({ result: result.rows[0] }));
+
+    // No return value — function completes after publishing/processing
+  } catch (err) {
+    console.error(
+      `manualMeasure error (nomorKendaraan: ${nomorKendaraan}):`,
+      err.message
+    );
+    throw new Error("Failed to fetch truck by nomor kendaraan");
+  }
+}
+
+export { getAllTrucks, getTruckById, insertTruck, manualMeasure };

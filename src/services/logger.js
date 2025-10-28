@@ -137,7 +137,7 @@ async function getLatestLog() {
           height: row.tinggi,
         },
         weight: row.berat,
-        status: `[${row.status}]`,
+        status: [row.status],
         photos: ["/truck-front-view.jpg"],
         sensorReadings: {
           weightSensor: row.berat,
@@ -154,7 +154,7 @@ async function getLatestLog() {
   }
 }
 
-async function deleteLog(id) {
+async function deleteLogById(id) {
   try {
     const result = await pool.query(
       "DELETE FROM truk_logger WHERE id = $1 RETURNING *",
@@ -168,4 +168,4 @@ async function deleteLog(id) {
   }
 }
 
-export { insertLogger, getAllLogs, getLatestLog };
+export { insertLogger, getAllLogs, getLatestLog, deleteLogById };

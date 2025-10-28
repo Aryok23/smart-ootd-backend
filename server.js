@@ -2,14 +2,23 @@ import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
 import cors from "cors";
-import { getAllLogs, insertLogger } from "./src/services/logger.js"; // import fungsi DB kamu
+import {
+  getAllLogs,
+  insertLogger,
+  deleteLogById,
+} from "./src/services/logger.js"; // import fungsi DB kamu
+import { loginUser } from "./src/services/auth.js";
+import { warmupDbClients } from "./src/config/warmup.js";
+import { getAllTrucks } from "./src/services/trucks.js";
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/" });
+
 app.use(cors());
 app.use(express.json()); // parse JSON body
 
-// // --- Helper untuk broadcast ke semua client WebSocket ---
+// --- Helper untuk broadcast ke semua client WebSocket ---
 function broadcast(message) {
   wss.clients.forEach((client) => {
     if (client.readyState === 1) {
@@ -34,6 +43,17 @@ wss.on("connection", async (ws) => {
   ws.on("close", () => console.log("🔴 Client disconnected"));
 });
 
+// --- API ENDPOINTS ---
+// --- Endpoint HTTP untuk mendapatkan semua data truk ---
+app.get("/trucks", async (req, res) => {
+  try {
+    const logs = await getAllTrucks();
+    res.status(200).json({ data: logs });
+  } catch (error) {
+    console.error("Error fetching logs:", error);
+    res.status(500).json({ message: "Failed to fetch logs" });
+  }
+});
 // --- Endpoint HTTP untuk insert log baru ---
 app.post("/logs", async (req, res) => {
   try {
@@ -49,12 +69,54 @@ app.post("/logs", async (req, res) => {
   }
 });
 
+app.delete("/logs/:id", async (req, res) => {
+  try {
+    // hapus log berdasarkan id
+    const logId = req.params.id;
+    await deleteLogById(logId);
+    res.status(204).json({ message: `Log With id ${logId} has been Deleted` });
+  } catch (error) {
+    console.error("Error deleting logs:", error);
+    res.status(500).json({ message: "Failed to delete logs" });
+  }
+});
+
+// LOGIN ROUTE
+app.post("/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    // Implement login logic here
+    await loginUser(username, password);
+    res.status(200).json({ message: "Login successful" });
+  } catch (error) {
+    console.error("Error during login:", error);
+    res.status(500).json({ message: "Login failed" });
+  }
+});
+
+// MANUAL INPUT TRUCK ID FOR MEASURE OF OVERDIMENSION AND OVERWEIGHT
+app.post("/truck/manual/:nomorKendaraan", async (req, res) => {
+  try {
+    const nomorKendaraan = req.params.nomorKendaraan;
+    // Implement manual truck ID input logic here
+    // For example, you might want to log this action or update a database
+    res.status(200).json({
+      message: `Manual truck ID ${nomorKendaraan} processed successfully`,
+    });
+  } catch (error) {
+    console.error("Error during manual truck ID input:", error);
+    res.status(500).json({ message: "Manual truck ID input failed" });
+  }
+});
+
 // --- Endpoint HTTP dasar ---
 app.get("/", (req, res) => {
   res.send("🚛 Realtime Logger WebSocket Server running");
 });
 
 // --- Jalankan server ---
-server.listen(3000, () => {
-  console.log("✅ Server running on http://localhost:3000");
-});
+const PORT = 3000;
+(async () => {
+  await warmupDbClients(parseInt(process.env.PG_WARMUP_CLIENTS, 10) || 5);
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+})();
