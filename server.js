@@ -2,14 +2,14 @@ import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
 import cors from "cors";
+import { loginUser } from "./src/services/auth.js";
 import {
   getAllLogs,
   insertLogger,
   deleteLogById,
 } from "./src/services/logger.js"; // import fungsi DB kamu
-import { loginUser } from "./src/services/auth.js";
 import { warmupDbClients } from "./src/config/warmup.js";
-import { getAllTrucks } from "./src/services/trucks.js";
+import { getAllTrucks, manualMeasure } from "./src/services/trucks.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -27,7 +27,7 @@ function broadcast(message) {
   });
 }
 
-// --- WebSocket connection ---
+// --- WEBSOCKET CONNECTION ---
 wss.on("connection", async (ws) => {
   console.log("🟢 Client connected");
   try {
@@ -44,6 +44,11 @@ wss.on("connection", async (ws) => {
 });
 
 // --- API ENDPOINTS ---
+// --- Endpoint HTTP dasar ---
+app.get("/", (req, res) => {
+  res.send("🚛 Realtime Logger WebSocket Server running");
+});
+
 // --- Endpoint HTTP untuk mendapatkan semua data truk ---
 app.get("/trucks", async (req, res) => {
   try {
@@ -54,6 +59,34 @@ app.get("/trucks", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch logs" });
   }
 });
+
+// --- Endpoint HTTP untuk input manual truk untuk pengukuran Overload dan Overdimension---
+app.post("/truck/manual/:nomorKendaraan", async (req, res) => {
+  try {
+    const nomorKendaraan = req.params.nomorKendaraan;
+    // Implement manual truck ID input logic here
+    await manualMeasure(nomorKendaraan);
+    // For example, you might want to log this action or update a database
+    res.status(200).json({
+      message: `Manual truck ID ${nomorKendaraan} processed successfully`,
+    });
+  } catch (error) {
+    console.error("Error during manual truck ID input:", error);
+    res.status(500).json({ message: "Manual truck ID input failed" });
+  }
+});
+
+// --- Endpoint HTTP untuk mendapatkan semua logs ---
+app.get("/logs", async (req, res) => {
+  try {
+    const logs = await getAllLogs();
+    res.status(200).json({ data: logs });
+  } catch (error) {
+    console.error("Error fetching logs:", error);
+    res.status(500).json({ message: "Failed to fetch logs" });
+  }
+});
+
 // --- Endpoint HTTP untuk insert log baru ---
 app.post("/logs", async (req, res) => {
   try {
@@ -69,6 +102,7 @@ app.post("/logs", async (req, res) => {
   }
 });
 
+// --- Endpoint HTTP untuk menghapus log berdasarkan id ---
 app.delete("/logs/:id", async (req, res) => {
   try {
     // hapus log berdasarkan id
@@ -81,7 +115,7 @@ app.delete("/logs/:id", async (req, res) => {
   }
 });
 
-// LOGIN ROUTE
+// --- Endpoint HTTP untuk login ---
 app.post("/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -94,29 +128,9 @@ app.post("/auth/login", async (req, res) => {
   }
 });
 
-// MANUAL INPUT TRUCK ID FOR MEASURE OF OVERDIMENSION AND OVERWEIGHT
-app.post("/truck/manual/:nomorKendaraan", async (req, res) => {
-  try {
-    const nomorKendaraan = req.params.nomorKendaraan;
-    // Implement manual truck ID input logic here
-    // For example, you might want to log this action or update a database
-    res.status(200).json({
-      message: `Manual truck ID ${nomorKendaraan} processed successfully`,
-    });
-  } catch (error) {
-    console.error("Error during manual truck ID input:", error);
-    res.status(500).json({ message: "Manual truck ID input failed" });
-  }
-});
-
-// --- Endpoint HTTP dasar ---
-app.get("/", (req, res) => {
-  res.send("🚛 Realtime Logger WebSocket Server running");
-});
-
 // --- Jalankan server ---
 const PORT = 3000;
 (async () => {
   await warmupDbClients(parseInt(process.env.PG_WARMUP_CLIENTS, 10) || 5);
-  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+  server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`)); // <-- INI YANG BENAR
 })();

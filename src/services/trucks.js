@@ -111,8 +111,7 @@ async function manualMeasure(nomorKendaraan) {
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
     // await mqttClient.publish('topic/manual/measure', JSON.stringify({ result: result.rows[0] }));
-
-    // No return value — function completes after publishing/processing
+    return result.rows[0];
   } catch (err) {
     console.error(
       `manualMeasure error (nomorKendaraan: ${nomorKendaraan}):`,
@@ -122,4 +121,10 @@ async function manualMeasure(nomorKendaraan) {
   }
 }
 
-export { getAllTrucks, getTruckById, insertTruck, manualMeasure };
+export {
+  getAllTrucks,
+  getTruckById,
+  insertTruck,
+  deleteTruckById,
+  manualMeasure,
+};
