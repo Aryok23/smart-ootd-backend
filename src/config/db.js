@@ -1,7 +1,7 @@
-const { Pool } = require('pg');
+import { Pool } from "pg";
 // const path = require('path');
 // require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
-require('dotenv').config();
+import "dotenv/config";
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -11,24 +11,27 @@ const pool = new Pool({
   password: process.env.DB_PASS,
   max: 10, // batas koneksi aktif (default 10)
   idleTimeoutMillis: 30000, // auto release setelah idle
+  ssl: {
+    rejectUnauthorized: false, // penting agar koneksi SSL diterima tanpa sertifikat manual
+  },
 });
 
 // Tes koneksi awal
 (async () => {
   try {
     const client = await pool.connect();
-    console.log('Connected to PostgreSQL');
+    console.log("Connected to PostgreSQL");
     client.release();
   } catch (err) {
-    console.error('Database connection error:', err.message);
+    console.error("Database connection error:", err.message);
   }
 })();
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('Closing database pool...');
+process.on("SIGINT", async () => {
+  console.log("Closing database pool...");
   await pool.end();
   process.exit(0);
 });
 
-module.exports = pool;
+export default pool;
