@@ -1,7 +1,8 @@
 // src/mqtt/client.js
-require('dotenv').config();
-const mqtt = require('mqtt');
-const { getTruckById, insertLogger } = require('../services/trucks');
+require("dotenv").config();
+const mqtt = require("mqtt");
+const { getTruckById } = require("../services/trucks");
+const { insertLogger } = require("../services/logger");
 
 const BROKER_URL = process.env.MQTT_URL;
 
@@ -17,37 +18,37 @@ const client = mqtt.connect(BROKER_URL, {
   reconnectPeriod: 1000, // auto reconnect 1s
 });
 
-client.on('connect', () => {
-  logWithTime('Connected to Aedes broker:', BROKER_URL);
+client.on("connect", () => {
+  logWithTime("Connected to Aedes broker:", BROKER_URL);
 
   // Subscribe ke topik
-  client.subscribe([
-    'smart-ootd/truk/request',
-    'smart-ootd/truk/result',
-  ], (err) => {
-    if (err) logWithTime('Subscribe error:', err.message);
-    else logWithTime('Subscribed to truck topics');
-  });
+  client.subscribe(
+    ["smart-ootd/truk/request", "smart-ootd/truk/result"],
+    (err) => {
+      if (err) logWithTime("Subscribe error:", err.message);
+      else logWithTime("Subscribed to truck topics");
+    }
+  );
 });
 
-client.on('error', (err) => {
-  logWithTime('MQTT Client error:', err.message);
+client.on("error", (err) => {
+  logWithTime("MQTT Client error:", err.message);
 });
 
-client.on('message', async (topic, message) => {
+client.on("message", async (topic, message) => {
   try {
     const payload = JSON.parse(message.toString());
     logWithTime(`Received on ${topic}:`, payload);
 
-    if (topic === 'smart-ootd/truk/request') {
+    if (topic === "smart-ootd/truk/request") {
       // Ambil batas truk dari DB
       const truk = await getTruckById(payload.id_truk);
 
       if (!truk) {
         logWithTime(`Truck ${payload.id_truk} not found`);
         return client.publish(
-          'smart-ootd/truk/response',
-          JSON.stringify({ error: 'Truck not found', id_truk: payload.id_truk })
+          "smart-ootd/truk/response",
+          JSON.stringify({ error: "Truck not found", id_truk: payload.id_truk })
         );
       }
 
@@ -61,14 +62,14 @@ client.on('message', async (topic, message) => {
         batas_tinggi: truk.batas_tinggi,
       };
 
-      client.publish('smart-ootd/truk/response', JSON.stringify(response));
-      logWithTime('Sent truck limit:', response);
+      client.publish("smart-ootd/truk/response", JSON.stringify(response));
+      logWithTime("Sent truck limit:", response);
     }
 
-    if (topic === 'smart-ootd/truk/result') {
+    if (topic === "smart-ootd/truk/result") {
       // Simpan hasil ke logger DB
       const log = await insertLogger(payload);
-      logWithTime('Log saved:', log);
+      logWithTime("Log saved:", log);
     }
   } catch (err) {
     logWithTime(`Error processing ${topic}:`, err.message);
