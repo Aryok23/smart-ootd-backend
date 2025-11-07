@@ -14,7 +14,7 @@ function logWithTime(...args) {
 // Buat TCP server untuk MQTT
 const server = net.createServer(aedes.handle);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   logWithTime(`Aedes broker running on port ${PORT}`);
 });
 
