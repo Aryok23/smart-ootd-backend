@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../config/db.js";
 import http from "http";
 const app = express();
+import { publishToMqtt } from "../mqtt/mqttPublisher.js";
 
 const server = http.createServer(app);
 
@@ -16,6 +17,7 @@ async function setGateStatus(gateId, status) {
       `UPDATE gates SET status = $1 WHERE id = $2 RETURNING *`,
       [status, gateId]
     );
+    publishToMqtt("smart-ootd/gate/status", { gateId: gateId, status: status });
     return result.rows[0];
   } catch (err) {
     console.error("setGateStatus error:", err.message);

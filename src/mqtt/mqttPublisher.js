@@ -11,7 +11,7 @@ const options = {
   reconnectPeriod: 2000,
 };
 
-const brokerUrl = "mqtt://localhost:1883";
+const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
 const client = mqtt.connect(brokerUrl, options);
 
 // ===============================
@@ -56,6 +56,8 @@ export async function publishToMqtt(
   let message;
   try {
     message = JSON.stringify(payload);
+    console.log("Payload: ", payload);
+    console.log("Message: ", message);
   } catch (e) {
     console.error("[MQTT] ❌ Payload bukan JSON valid:", e.message);
     return;
@@ -66,7 +68,7 @@ export async function publishToMqtt(
     if (err) {
       console.error(`[MQTT] ❌ Gagal publish ke ${topic}:`, err.message);
     } else {
-      console.log(`[MQTT] 📤 Published ke ${topic}:`, message);
+      console.log(`[MQTT] 📤 Published ${brokerUrl} ke ${topic}:`, message);
     }
   });
 }

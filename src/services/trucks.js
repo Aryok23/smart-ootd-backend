@@ -2,6 +2,7 @@ import express from "express";
 import pool from "../config/db.js";
 import http from "http";
 const app = express();
+import { publishToMqtt } from "../mqtt/mqttPublisher.js";
 
 const server = http.createServer(app);
 
@@ -105,16 +106,15 @@ async function deleteTruckById(id_truk) {
 async function manualMeasure(nomorKendaraan) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master WHERE nomor_kendaraan = $1",
+      // "SELECT * FROM truk_master WHERE nomor_kendaraan = $1",
+      "SELECT * FROM truk_master WHERE truk_id = $1",
       [nomorKendaraan]
     );
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
-    publishToMqtt(`smart-ootd/truk/manual/${nomorKendaraan}`, result.rows[0]);
-    return publishToMqtt(
-      `smart-ootd/truk/manual/${nomorKendaraan}`,
-      result.rows[0]
-    );
+    console.log("Truck Data for Manual Measure: ", result.rows[0]);
+    publishToMqtt(`smart-ootd/truk/manual/`, result.rows[0]);
+    return result.rows[0];
   } catch (err) {
     console.error(
       `manualMeasure error (nomorKendaraan: ${nomorKendaraan}):`,
