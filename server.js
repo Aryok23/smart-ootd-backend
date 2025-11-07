@@ -9,8 +9,13 @@ import {
   deleteLogById,
 } from "./src/services/logger.js"; // import fungsi DB kamu
 import { warmupDbClients } from "./src/config/warmup.js";
-import { getAllTrucks, manualMeasure } from "./src/services/trucks.js";
-
+import {
+  getAllTrucks,
+  getTruckById,
+  manualMeasure,
+} from "./src/services/trucks.js";
+import mqtt from "mqtt";
+import { publishToMqtt } from "./src/mqtt/mqttPublisher.js";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/" });
@@ -26,8 +31,78 @@ function broadcast(message) {
     }
   });
 }
+// ========================================
+// --- MQTT SETUP ---
+// ========================================
+const MQTT_URL = process.env.MQTT_URL;
+const mqttClient = mqtt.connect(MQTT_URL, {
+  clientID: "ootd-backend-" + Math.random().toString(16).substr(2, 6),
+  keepalive: 30,
+  reconnectPeriod: 1000,
+  clean: true,
+});
 
+// --- Helper untuk timestamp ---
+function logWithTime(...args) {
+  const ts = new Date().toISOString();
+  console.log(`[${ts}]`, ...args);
+}
+
+// --- MQTT Handlers ---
+const mqttHandlers = {
+  "smart-ootd/truk/request": async (payload) => {
+    logWithTime("📥 [MQTT] Insert Log:", payload);
+    const newLog = await getTruckById(payload);
+    logWithTime("🚛 [MQTT] Truck Limits:", newLog);
+  },
+
+  "smart-ootd/truk/result": async (payload) => {
+    logWithTime("🗑 [MQTT] Insert Log:", payload);
+    const insertedLog = await insertLogger(payload);
+    logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
+    broadcast({ type: "update", data: payload });
+  },
+
+  // "truck/manual": async (payload) => {
+  //   console.log("⚙️ [MQTT] Manual Measure:", payload.nomorKendaraan);
+  //   await manualMeasure(payload.nomorKendaraan);
+  //   broadcast({ type: "manual", data: payload });
+  // },
+};
+
+// --- Connect to Subscription Topics ---
+mqttClient.on("connect", () => {
+  console.log("📡 Connected to MQTT broker:", MQTT_URL);
+  Object.keys(mqttHandlers).forEach((topic) => {
+    mqttClient.subscribe(topic, (err) => {
+      if (err)
+        console.error(`❌ Failed to subscribe to ${topic}:`, err.message);
+      else console.log(`✅ Subscribed to topic: ${topic}`);
+    });
+  });
+});
+
+// --- MQTT Message Handler ---
+mqttClient.on("error", (err) => {
+  logWithTime("MQTT Client Error:", err.message);
+});
+mqttClient.on("message", async (topic, message) => {
+  try {
+    const payload = JSON.parse(message.toString());
+    const handler = mqttHandlers[topic];
+    if (handler) {
+      await handler(payload);
+    } else {
+      logWithTime("⚠️ [MQTT] No handler for topic:", topic);
+    }
+  } catch (err) {
+    logWithTime("❌ [MQTT] Error handling message:", err);
+  }
+});
+
+// ========================================
 // --- WEBSOCKET CONNECTION ---
+// ========================================
 wss.on("connection", async (ws) => {
   console.log("🟢 Client connected");
   try {
@@ -43,7 +118,9 @@ wss.on("connection", async (ws) => {
   ws.on("close", () => console.log("🔴 Client disconnected"));
 });
 
+// ========================================
 // --- API ENDPOINTS ---
+// ========================================
 // --- Endpoint HTTP dasar ---
 app.get("/", (req, res) => {
   res.send("🚛 Realtime Logger WebSocket Server running");
@@ -66,7 +143,7 @@ app.post("/truck/manual/:nomorKendaraan", async (req, res) => {
     const nomorKendaraan = req.params.nomorKendaraan;
     // Implement manual truck ID input logic here
     await manualMeasure(nomorKendaraan);
-    // For example, you might want to log this action or update a database
+
     res.status(200).json({
       message: `Manual truck ID ${nomorKendaraan} processed successfully`,
     });
