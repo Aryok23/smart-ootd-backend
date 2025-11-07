@@ -14,6 +14,11 @@ import {
   getTruckById,
   manualMeasure,
 } from "./src/services/trucks.js";
+import {
+  setGateStatus,
+  getGateStatus,
+  getAllGateName,
+} from "./src/services/gate.js";
 import mqtt from "mqtt";
 import { publishToMqtt } from "./src/mqtt/mqttPublisher.js";
 const app = express();
@@ -204,6 +209,16 @@ app.post("/auth/login", async (req, res) => {
     res.status(500).json({ message: "Login failed" });
   }
 });
+// --- Gate API ENDPOINTS ---
+app.get("/gates/names", async (req, res) => {
+  try {
+    const gateNames = await getAllGateName();
+    res.status(200).json({ data: gateNames });
+  } catch (error) {
+    console.error("Error fetching gate names:", error);
+    res.status(500).json({ message: "Failed to fetch gate names" });
+  }
+});
 
 // --- Jalankan server ---
 const PORT = 3000;
@@ -211,3 +226,5 @@ const PORT = 3000;
   await warmupDbClients(parseInt(process.env.PG_WARMUP_CLIENTS, 10) || 5);
   server.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`)); // <-- INI YANG BENAR
 })();
+
+export { app, server, wss, mqttClient };
