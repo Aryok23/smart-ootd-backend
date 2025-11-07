@@ -5,6 +5,16 @@ const app = express();
 import { publishToMqtt } from "../mqtt/mqttPublisher.js";
 
 const server = http.createServer(app);
+// function for get gate name
+async function getAllGateName() {
+  try {
+    const result = await pool.query(`SELECT * FROM gates`);
+    return result.rows;
+  } catch (err) {
+    console.error("getAllGateName error:", err.message);
+    throw new Error("Failed to get all gate names");
+  }
+}
 
 // function for open/close gate manually
 async function setGateStatus(gateId, status) {
@@ -14,7 +24,12 @@ async function setGateStatus(gateId, status) {
 
     // update status in database if successfully sent via mqtt
     const result = await pool.query(
-      `UPDATE gates SET status = $1 WHERE id = $2 RETURNING *`,
+      `INSERT INTO public.gate_status (gate_name, gate_status)
+          VALUES ($1, $2)
+          ON CONFLICT (gate_name)
+          DO UPDATE
+          SET gate_status = EXCLUDED.gate_status;
+          RETURNING *`,
       [status, gateId]
     );
     publishToMqtt("smart-ootd/gate/status", { gateId: gateId, status: status });
@@ -38,6 +53,6 @@ async function getGateStatus(gateId) {
   }
 }
 
-export { setGateStatus, getGateStatus };
+export { setGateStatus, getGateStatus, getAllGateName };
 
 // Cara Gunakan Fungsi -> Cek get status via getGateStatus -> Buat Rules untuk membuka/menutup gate via setGateStatus

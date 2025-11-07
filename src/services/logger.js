@@ -20,11 +20,13 @@ async function insertLogger({
   lebar_aktual,
   tinggi_aktual,
   status,
+  waktu_mulai,
+  waktu_selesai,
 }) {
   try {
     const result = await pool.query(
-      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         id_truk,
@@ -33,6 +35,8 @@ async function insertLogger({
         lebar_aktual,
         tinggi_aktual,
         status,
+        waktu_mulai,
+        waktu_selesai,
       ]
     );
 
@@ -145,6 +149,8 @@ async function getLatestLog() {
           lengthSensor: row.panjang,
           widthSensor: row.lebar,
         },
+        waktu_mulai: row.waktu_mulai,
+        waktu_selesai: row.waktu_selesai,
       };
     });
     return transformedLogs;

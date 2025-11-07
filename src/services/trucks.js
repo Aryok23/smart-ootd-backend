@@ -30,10 +30,10 @@ async function getAllTrucks() {
 async function getTruckById(id_truk) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master WHERE truk_id = $1",
+      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE truk_id = $1",
       [id_truk]
     );
-    return result.rows[0] || null;
+    return {};
   } catch (err) {
     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
     throw new Error("Failed to fetch truck by ID");
