@@ -34,9 +34,7 @@ async function setGateStatus(gateId, status) {
 
     // Publish ke MQTT setelah database berhasil diupdate
     await publishToMqtt("smart-ootd/servo/cmd", {
-      gateId: gateId,
-      status: status,
-      timestamp: new Date().toISOString(),
+      msg: `SERVO:${gateId}:${status}`,
     });
 
     console.log(`[GATE] ${gateId} set to ${status}`);
