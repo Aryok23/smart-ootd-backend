@@ -75,12 +75,12 @@ client.on("message", async (topic, message) => {
 
       // Format response JSON
       const response = {
-        id_truk: truk.id_truk,
-        kategori: truk.kategori,
-        batas_berat: truk.batas_berat,
-        batas_panjang: truk.batas_panjang,
-        batas_lebar: truk.batas_lebar,
-        batas_tinggi: truk.batas_tinggi,
+        id_truk: truk.truk_id,
+        kelas: truk.class_id,
+        batas_berat: truk.max_berat,
+        batas_panjang: truk.max_panjang,
+        batas_lebar: truk.max_lebar,
+        batas_tinggi: truk.max_tinggi,
       };
 
       client.publish('smart-ootd/truk/response', JSON.stringify(response), { qos: 0, retain: false });

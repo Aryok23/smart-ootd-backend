@@ -13,31 +13,33 @@ const io = new Server(server, {
 });
 
 /*Tambah log baru ke database dan kirim ke client melalui websocket*/
-async function insertLogger({
-  id_truk,
-  berat_aktual,
-  panjang_aktual,
-  lebar_aktual,
-  tinggi_aktual,
-  status,
-  waktu_mulai,
-  waktu_selesai,
-}) {
+async function insertLogger(payload) {
+  const truk_id = payload.id_truk;
+  const berat = payload.berat_aktual;
+  const panjang = payload.panjang_aktual;
+  const lebar = payload.lebar_aktual;       // ESP01 selalu kirim lebar_aktual
+  const tinggi = payload.tinggi_aktual;
+  const status = payload.status;
   try {
     const result = await pool.query(
-      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [
-        id_truk,
-        berat_aktual,
-        panjang_aktual,
-        lebar_aktual,
-        tinggi_aktual,
-        status,
-        waktu_mulai,
-        waktu_selesai,
-      ]
+      `
+      INSERT INTO truk_logger (
+        truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai
+      )
+      SELECT
+        $1::text AS truk_id,
+        $2::integer AS berat,
+        $3::integer AS panjang,
+        tm.max_lebar::integer AS lebar,   -- <=== ambil dari truk_master
+        $4::integer AS tinggi,
+        $5::text AS status,
+        NOW() AS waktu_mulai,
+        NOW() AS waktu_selesai
+      FROM truk_master tm
+      WHERE tm.truk_id = $1
+      RETURNING *;
+      `,
+      [truk_id, berat, panjang, tinggi, status]
     );
 
     console.log("insertLogger result:", result.rows);

@@ -64,24 +64,58 @@ function logWithTime(...args) {
 
 // --- MQTT Handlers ---
 const mqttHandlers = {
-  "smart-ootd/truk/request": async (payload) => {
-    logWithTime("📥 [MQTT] Insert Log:", payload);
-    const newLog = await getTruckById(payload);
-    logWithTime("🚛 [MQTT] Truck Limits:", newLog);
-  },
+  // "smart-ootd/truk/request": async (payload) => {
+  //   logWithTime("📥 [MQTT] Insert Log:", payload);
+  //   const newLog = await getTruckById(payload);
+  //   logWithTime("🚛 [MQTT] Truck Limits:", newLog);
+  // },
 
-  "smart-ootd/truk/result": async (payload) => {
-    logWithTime("🗑 [MQTT] Insert Log:", payload);
-    const insertedLog = await insertLogger(payload);
-    logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
-    broadcast({ type: "update", data: payload });
-  },
+  // "smart-ootd/truk/result": async (payload) => {
+  //   logWithTime("🗑 [MQTT] Insert Log:", payload);
+  //   const insertedLog = await insertLogger(payload);
+  //   logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
+  //   broadcast({ type: "update", data: payload });
+  // },
 
   // "truck/manual": async (payload) => {
   //   console.log("⚙️ [MQTT] Manual Measure:", payload.nomorKendaraan);
   //   await manualMeasure(payload.nomorKendaraan);
   //   broadcast({ type: "manual", data: payload });
   // },
+    "smart-ootd/truk/request": async (payload) => {
+    logWithTime(`📥 [MQTT] Request Truck Limit:`, payload);
+
+    const truk = await getTruckById(payload.id_truk);
+
+    if (!truk) {
+      logWithTime(`❌ Truck with ID ${payload.id_truk} not found`);
+      publishToMqtt("smart-ootd/truk/response", {
+        error: "Truck not found",
+        id_truk: payload.id_truk,
+      });
+      return;
+    }
+
+    const response = {
+      id_truk: truk.truk_id,
+      kategori: truk.class_id,
+      batas_berat: truk.max_berat,
+      batas_panjang: truk.max_panjang,
+      batas_lebar: truk.max_lebar,
+      batas_tinggi: truk.max_tinggi,
+    };
+
+    publishToMqtt("smart-ootd/truk/response", response);
+    logWithTime("📤 Sent truck limit:", response);
+  },
+
+  "smart-ootd/truk/result": async (payload) => {
+    logWithTime("📝 [MQTT] Insert Log:", payload);
+    const insertedLog = await insertLogger(payload);
+    logWithTime("✅ Log Inserted:", insertedLog);
+
+    broadcast({ type: "update", data: insertedLog });
+  },
 };
 
 // --- Connect to Subscription Topics ---

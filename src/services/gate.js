@@ -20,6 +20,7 @@ async function getAllGateName() {
 async function setGateStatus(gateId, status) {
   try {
     // Update status in database
+    if (gateId!="ALL" || "all" || "All"){
     const result = await pool.query(
       `UPDATE gates 
        SET gate_status = $1 
@@ -31,7 +32,10 @@ async function setGateStatus(gateId, status) {
     if (result.rows.length === 0) {
       throw new Error(`Gate ${gateId} not found`);
     }
-
+}
+else {
+  gateId = gateId.toUpperCase();
+}
     // Publish ke MQTT setelah database berhasil diupdate
     await publishToMqtt("smart-ootd/servo/cmd",
       `SERVO:${gateId}:${status}`

@@ -47,7 +47,7 @@ const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
 export async function publishToMqtt(
   topic,
   payload,
-  options = { qos: 1, retain: false }
+  options = { qos: 0, retain: false }
 ) {
   if (!client.connected) {
     console.warn("[MQTT] ⏳ Broker belum siap, menunggu koneksi...");
@@ -78,6 +78,8 @@ export async function publishToMqtt(
   });
 }
 
+export default client;
+
 // ===============================
 // Helper: tunggu koneksi jika belum tersambung
 // ===============================
@@ -105,5 +107,5 @@ if (process.argv[1].includes("mqttPublisher.js")) {
     },
   };
 
-  publishToMqtt(topic, payload, { qos: 1, retain: false });
+  publishToMqtt(topic, payload, { qos: 0, retain: false });
 }

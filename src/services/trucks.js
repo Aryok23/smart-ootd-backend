@@ -27,34 +27,48 @@ async function getAllTrucks() {
 }
 
 /*Ambil data truk master berdasarkan ID*/
+// async function getTruckById(id_truk) {
+//   try {
+//     const result = await pool.query(
+//       "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE truk_id = $1",
+//       [id_truk]
+//     );
+//     return {};
+//   } catch (err) {
+//     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
+//     throw new Error("Failed to fetch truck by ID");
+//   }
+// }
+
 async function getTruckById(id_truk) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE truk_id = $1",
+      'SELECT * FROM truk_master WHERE truk_id = $1',
       [id_truk]
     );
-    return {};
+    return result.rows[0] || null;
   } catch (err) {
     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
-    throw new Error("Failed to fetch truck by ID");
+    throw new Error('Failed to fetch truck by ID');
   }
 }
 
 /*Tambah truk baru ke master*/
 async function insertTruck({
-  id_truk,
-  kategori,
-  batas_berat,
-  batas_panjang,
-  batas_lebar,
-  batas_tinggi,
+  truk_id,
+  kelas_id,
+  max_berat,
+  max_panjang,
+  max_lebar,
+  max_tinggi,
+  nomor_kendaraan,
 }) {
   try {
     const result = await pool.query(
-      `INSERT INTO truk_master (id_truk, kategori, batas_berat, batas_panjang, batas_lebar, batas_tinggi)
+      `INSERT INTO truk_master (truk_id, kelas_id, max_berat, max_panjang, max_lebar, max_tinggi, nomor_kendaraan)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [id_truk, kategori, batas_berat, batas_panjang, batas_lebar, batas_tinggi]
+      [truk_id, kelas_id, max_berat, max_panjang, max_lebar, max_tinggi, nomor_kendaraan]
     );
     return result.rows[0];
   } catch (err) {
@@ -118,8 +132,18 @@ async function manualMeasure(nomorKendaraan) {
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
     console.log("Truck Data for Manual Measure: ", result.rows[0]);
-    publishToMqtt(`smart-ootd/truk/response`, result.rows[0]);
-    return result.rows[0];
+    const truckData = result.rows.map((row) => {
+      return {
+        id_truk: row.truk_id,
+        kelas: row.class_id,
+        batas_berat: row.max_berat,
+        batas_panjang: row.panjang,
+        batas_lebar: row.lebar,
+        batas_tinggi: row.tinggi,
+      };
+    });
+    publishToMqtt(`smart-ootd/truk/response`, truckData[0]);
+    return truckData[0];
   } catch (err) {
     console.error(
       `manualMeasure error (nomorKendaraan: ${nomorKendaraan}):`,
@@ -132,25 +156,25 @@ async function manualMeasure(nomorKendaraan) {
 /**
  * Tambah log hasil pemeriksaan truk
  */
-async function insertLogger({ id_truk, berat_aktual, panjang_aktual, tinggi_aktual, status }) {
+async function insertLogger({ truk_id, berat, panjang, tinggi, status }) {
   try {
     const result = await pool.query(
       `
       INSERT INTO truk_logger (
-        id_truk, berat_aktual, panjang_aktual, lebar_aktual, tinggi_aktual, status
+        truk_id, berat, panjang, lebar, tinggi, status
       )
       SELECT 
-        $1::text AS id_truk,
-        $2::double precision AS berat_aktual,
-        $3::double precision AS panjang_aktual,
-        tm.batas_lebar::double precision AS lebar_aktual,
-        $4::double precision AS tinggi_aktual,
+        $1::text AS truk_id,
+        $2::integer AS berat,
+        $3::integer AS panjang,
+        tm.batas_lebar::integer AS lebar,
+        $4::integer AS tinggi,
         $5::text AS status
       FROM truk_master tm
-      WHERE tm.id_truk = $1::text
+      WHERE tm.truk_id = $1::text
       RETURNING *;
       `,
-      [id_truk, berat_aktual, panjang_aktual, tinggi_aktual, status]
+      [truk_id, berat, panjang, tinggi, status]
     );
 
     if (result.rows.length === 0) {
