@@ -19,20 +19,28 @@ async function getAllGateName() {
 // function for open/close gate manually
 async function setGateStatus(gateId, status) {
   try {
-    // send via mqtt to open gate
-    // await mqttClient.publish('topic/gate/set', JSON.stringify({ gateId, status }));
-
-    // update status in database if successfully sent via mqtt
+    // Update status in database
     const result = await pool.query(
-      `INSERT INTO public.gate_status (gate_name, gate_status)
-          VALUES ($1, $2)
-          ON CONFLICT (gate_name)
-          DO UPDATE
-          SET gate_status = EXCLUDED.gate_status;
-          RETURNING *`,
+      `UPDATE gates 
+       SET gate_status = $1 
+       WHERE gate_name = $2 
+       RETURNING *`,
       [status, gateId]
     );
-    publishToMqtt("smart-ootd/servo/cmd", { msg: `SERVO:${gateId}:${status}` });
+
+    if (result.rows.length === 0) {
+      throw new Error(`Gate ${gateId} not found`);
+    }
+
+    // Publish ke MQTT setelah database berhasil diupdate
+    await publishToMqtt("smart-ootd/servo/cmd", {
+      gateId: gateId,
+      status: status,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`[GATE] ${gateId} set to ${status}`);
+
     return result.rows[0];
   } catch (err) {
     console.error("setGateStatus error:", err.message);
@@ -43,9 +51,10 @@ async function setGateStatus(gateId, status) {
 // function for get gate status
 async function getGateStatus(gateId) {
   try {
-    const result = await pool.query(`SELECT * FROM gates WHERE id = $1`, [
-      gateId,
-    ]);
+    const result = await pool.query(
+      `SELECT * FROM gates WHERE gate_name = $1`,
+      [gateId]
+    );
     return result.rows[0];
   } catch (err) {
     console.error("getGateStatus error:", err.message);

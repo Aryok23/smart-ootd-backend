@@ -13,7 +13,7 @@ import client from "./mqttConnect.js";
 //   reconnectPeriod: 1000,
 // };
 
-// const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
+const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
 // const client = mqtt.connect(brokerUrl, options);
 
 // ===============================

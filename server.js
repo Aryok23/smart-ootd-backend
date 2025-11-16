@@ -258,13 +258,111 @@ function generateSimpleToken(userId, username) {
 }
 
 // --- Gate API ENDPOINTS ---
-app.get("/gates/names", async (req, res) => {
+// GET - Ambil semua gate dan statusnya
+app.get("/gates", async (req, res) => {
   try {
-    const gateNames = await getAllGateName();
-    res.status(200).json({ data: gateNames });
+    const gates = await getAllGateName();
+    res.status(200).json({ data: gates });
   } catch (error) {
-    console.error("Error fetching gate names:", error);
-    res.status(500).json({ message: "Failed to fetch gate names" });
+    console.error("Error fetching gates:", error);
+    res.status(500).json({ error: "Failed to fetch gates" });
+  }
+});
+
+// GET - Ambil status gate tertentu
+app.get("/gates/:gateId", async (req, res) => {
+  try {
+    const { gateId } = req.params;
+    const gate = await getGateStatus(gateId);
+
+    if (!gate) {
+      return res.status(404).json({ error: "Gate not found" });
+    }
+
+    res.status(200).json({ data: gate });
+  } catch (error) {
+    console.error("Error fetching gate status:", error);
+    res.status(500).json({ error: "Failed to fetch gate status" });
+  }
+});
+
+// POST - Set status gate (open/close)
+app.post("/gates/:gateId/control", authenticateToken, async (req, res) => {
+  try {
+    const { gateId } = req.params;
+    const { action } = req.body; // "open" atau "close"
+
+    // Validasi action
+    if (!action || !["open", "close"].includes(action.toLowerCase())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid action. Use 'open' or 'close'" });
+    }
+
+    // Validasi role user
+    const userRole = req.user.role || "admin"; // Dari JWT token
+    if (userRole !== "admin" && userRole !== "operator") {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    // Set gate status
+    const status = action.toLowerCase() === "open" ? "OPEN" : "CLOSE";
+    const updatedGate = await setGateStatus(gateId, status);
+
+    // Log activity
+    console.log(`[GATE] User ${req.user.username} ${action} gate ${gateId}`);
+
+    res.status(200).json({
+      message: `Gate ${gateId} ${action} successfully`,
+      data: updatedGate,
+    });
+  } catch (error) {
+    console.error("Error controlling gate:", error);
+    res.status(500).json({ error: "Failed to control gate" });
+  }
+});
+
+// POST - Emergency action (open/close all gates)
+app.post("/gates/emergency/:action", authenticateToken, async (req, res) => {
+  try {
+    const { action } = req.params; // "open-all" atau "close-all"
+
+    // Validasi action
+    if (!["open-all", "close-all"].includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+
+    // Validasi role - hanya admin
+    const userRole = req.user.role || "admin";
+    if (userRole !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Admin access required for emergency actions" });
+    }
+
+    // Ambil semua gate
+    const gates = await getAllGateName();
+    const status = action === "open-all" ? "OPEN" : "CLOSE";
+
+    // Update semua gate
+    const results = await Promise.all(
+      gates.map((gate) => setGateStatus(gate.id, status))
+    );
+
+    // Log activity
+    console.log(
+      `[GATE EMERGENCY] User ${req.user.username} executed ${action}`
+    );
+
+    res.status(200).json({
+      message: `All gates ${
+        action === "open-all" ? "opened" : "closed"
+      } successfully`,
+      data: results,
+    });
+  } catch (error) {
+    console.error("Error in emergency gate control:", error);
+    res.status(500).json({ error: "Failed to execute emergency action" });
   }
 });
 

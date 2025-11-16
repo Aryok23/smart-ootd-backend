@@ -106,8 +106,7 @@ async function deleteTruckById(id_truk) {
 async function manualMeasure(nomorKendaraan) {
   try {
     const result = await pool.query(
-      // "SELECT * FROM truk_master WHERE nomor_kendaraan = $1",
-      "SELECT * FROM truk_master WHERE truk_id = $1",
+      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE nomor_kendaraan = $1",
       [nomorKendaraan]
     );
 
