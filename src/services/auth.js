@@ -1,21 +1,40 @@
 import express from "express";
 import pool from "../config/db.js";
 import http from "http";
+import bcrypt from "bcrypt";
 const app = express();
 
 const server = http.createServer(app);
 
 async function loginUser(username, password) {
   try {
+    // Query username
     const result = await pool.query(
-      "SELECT * FROM admins WHERE username = $1 AND password = $2",
-      [username, password]
+      "SELECT id, username, email, password_hash, created_at, updated_at FROM admins WHERE username = $1",
+      [username]
     );
-    if (result.rows.length > 0) {
-      return { success: true, user: result.rows[0] };
-    } else {
+
+    console.log("Query result:", result.rows);
+
+    // Cek user
+    if (result.rows.length === 0) {
       return { success: false, message: "Invalid credentials" };
     }
+
+    const user = result.rows[0];
+
+    // Verifikasi password
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return { success: false, message: "Invalid credentials" };
+    }
+    const { password_hash, ...userWithoutPassword } = user;
+
+    return {
+      success: true,
+      user: userWithoutPassword,
+    };
   } catch (err) {
     console.error("loginUser error:", err.message);
     throw new Error("Failed to login user");

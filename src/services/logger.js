@@ -46,23 +46,31 @@ async function insertLogger({
     const newLog = result.rows.map((row) => {
       return {
         id: row.id,
-        timestamp: row.waktu,
-        gateId: row.gateId,
+        timestamp: row.timestamp,
+        gateName: row.gate_name,
         vehicleId: row.truk_id,
-        dimensions: {
-          length: row.panjang,
-          width: row.lebar,
-          height: row.tinggi,
+        nomorKendaraan: row.nomor_kendaraan,
+        uji_kir: {
+          length: row.panjang_kir,
+          width: row.lebar_kir,
+          height: row.tinggi_kir,
+          weight: row.max_berat,
         },
-        weight: row.berat,
         status: `${[row.status]}`,
         photos: ["/truck-front-view.jpg"],
-        sensorReadings: {
-          weightSensor: row.berat,
-          heightSensor: row.tinggi,
-          lengthSensor: row.panjang,
-          widthSensor: row.lebar,
+        classDimensions: {
+          length: row.max_panjang,
+          width: row.max_lebar,
+          height: row.max_tinggi,
         },
+        sensorReadings: {
+          weight: row.berat,
+          height: row.tinggi,
+          length: row.panjang,
+          width: row.lebar,
+        },
+        waktu_mulai: row.waktu_mulai,
+        waktu_selesai: row.waktu_selesai,
       };
     });
 
@@ -82,33 +90,42 @@ async function insertLogger({
 async function getAllLogs() {
   try {
     const result = await pool.query(
-      `SELECT id, waktu, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
-	FROM truk_logger tl
-	JOIN truk_master tm on tl.truk_id = tm.truk_id
-	ORDER BY waktu DESC;`
+      `SELECT * FROM truk_full_log ORDER BY timestamp DESC;`
+      //     id, timestamp, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
+      // FROM truk_logger tl
+      // JOIN truk_master tm on tl.truk_id = tm.truk_id
+      // ORDER BY timestamp DESC;`
     );
     console.log("getAllLogs result:", result.rows);
     const row = result.rows[0];
     const transformedLogs = result.rows.map((row) => {
       return {
         id: row.id,
-        timestamp: row.waktu,
-        gateId: row.gateId,
+        timestamp: row.timestamp,
+        gateName: row.gate_name,
         vehicleId: row.truk_id,
-        dimensions: {
+        nomorKendaraan: row.nomor_kendaraan,
+        uji_kir: {
+          length: row.panjang_kir,
+          width: row.lebar_kir,
+          height: row.tinggi_kir,
+          weight: row.max_berat,
+        },
+        status: `${[row.status]}`,
+        photos: ["/truck-front-view.jpg"],
+        classDimensions: {
+          length: row.max_panjang,
+          width: row.max_lebar,
+          height: row.max_tinggi,
+        },
+        sensorReadings: {
+          weight: row.berat,
+          height: row.tinggi,
           length: row.panjang,
           width: row.lebar,
-          height: row.tinggi,
         },
-        weight: row.berat,
-        status: [row.status],
-        photos: ["/truck-front-view.jpg"],
-        sensorReadings: {
-          weightSensor: row.berat,
-          heightSensor: row.tinggi,
-          lengthSensor: row.panjang,
-          widthSensor: row.lebar,
-        },
+        waktu_mulai: row.waktu_mulai,
+        waktu_selesai: row.waktu_selesai,
       };
     });
     return transformedLogs;
@@ -121,10 +138,10 @@ async function getAllLogs() {
 async function getLatestLog() {
   try {
     const result = await pool.query(
-      `SELECT id, waktu, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
+      `SELECT id, timestamp, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
 	FROM truk_logger tl
 	JOIN truk_master tm on tl.truk_id = tm.truk_id
-	ORDER BY waktu DESC
+	ORDER BY timestamp DESC
   LIMIT 1;`
     );
     console.log("getLatestLog result:", result.rows);
@@ -132,22 +149,28 @@ async function getLatestLog() {
     const transformedLogs = result.rows.map((row) => {
       return {
         id: row.id,
-        timestamp: row.waktu,
-        gateId: row.gateId,
+        timestamp: row.timestamp,
+        gateName: row.gate_name,
         vehicleId: row.truk_id,
-        dimensions: {
+        nomorKendaraan: row.nomor_kendaraan,
+        uji_kir: {
+          length: row.panjang_kir,
+          width: row.lebar_kir,
+          height: row.tinggi_kir,
+          weight: row.max_berat,
+        },
+        status: `${[row.status]}`,
+        photos: ["/truck-front-view.jpg"],
+        classDimensions: {
+          length: row.max_panjang,
+          width: row.max_lebar,
+          height: row.max_tinggi,
+        },
+        sensorReadings: {
+          weight: row.berat,
+          height: row.tinggi,
           length: row.panjang,
           width: row.lebar,
-          height: row.tinggi,
-        },
-        weight: row.berat,
-        status: [row.status],
-        photos: ["/truck-front-view.jpg"],
-        sensorReadings: {
-          weightSensor: row.berat,
-          heightSensor: row.tinggi,
-          lengthSensor: row.panjang,
-          widthSensor: row.lebar,
         },
         waktu_mulai: row.waktu_mulai,
         waktu_selesai: row.waktu_selesai,

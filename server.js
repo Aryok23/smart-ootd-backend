@@ -21,13 +21,20 @@ import {
 } from "./src/services/gate.js";
 import mqtt from "mqtt";
 import { publishToMqtt } from "./src/mqtt/mqttPublisher.js";
+import {
+  generateJWTToken,
+  verifyJWTToken,
+  authenticateToken,
+} from "./src/middleware/auth.handler.js";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/" });
-
+import dotenv from "dotenv";
+dotenv.config();
 app.use(cors());
 app.use(express.json()); // parse JSON body
 
+// ========================================
 // --- Helper untuk broadcast ke semua client WebSocket ---
 function broadcast(message) {
   wss.clients.forEach((client) => {
@@ -39,13 +46,15 @@ function broadcast(message) {
 // ========================================
 // --- MQTT SETUP ---
 // ========================================
+import client from "./src/mqtt/mqttConnect.js";
 const MQTT_URL = process.env.MQTT_URL;
-const mqttClient = mqtt.connect(MQTT_URL, {
-  clientID: "ootd-backend-" + Math.random().toString(16).substr(2, 6),
-  keepalive: 30,
-  reconnectPeriod: 1000,
-  clean: true,
-});
+const mqttClient = client;
+// mqtt.connect(MQTT_URL, {
+//   clientID: "ootd-backend-" + Math.random().toString(16).substr(2, 6),
+//   keepalive: 30,
+//   reconnectPeriod: 1000,
+//   clean: true,
+// });
 
 // --- Helper untuk timestamp ---
 function logWithTime(...args) {
@@ -201,22 +210,159 @@ app.delete("/logs/:id", async (req, res) => {
 app.post("/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    // Implement login logic here
-    await loginUser(username, password);
-    res.status(200).json({ message: "Login successful" });
+
+    // Validasi input
+    if (!username || !password) {
+      return res
+        .status(400)
+        .json({ error: "Username and password are required" });
+    }
+
+    // Login user
+    const result = await loginUser(username, password);
+    console.log("Login result:", result);
+
+    // Cek apakah login bpubliserhasil
+    if (!result.success) {
+      return res
+        .status(401)
+        .json({ error: result.message || "Invalid credentials" });
+    }
+
+    // Generate JWT token
+    const token = generateJWTToken(
+      result.user.id,
+      result.user.username,
+      result.user.email
+    );
+
+    // Kirim response sukses
+    res.status(200).json({
+      token: token,
+      username: result.user.username,
+      email: result.user.email,
+      message: "Login successful",
+    });
   } catch (error) {
     console.error("Error during login:", error);
-    res.status(500).json({ message: "Login failed" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Fungsi helper untuk generate token sederhana
+// Nanti bisa diganti dengan JWT
+function generateSimpleToken(userId, username) {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2);
+  return `${userId}-${username}-${timestamp}-${randomStr}`;
+}
+
 // --- Gate API ENDPOINTS ---
-app.get("/gates/names", async (req, res) => {
+// GET - Ambil semua gate dan statusnya
+app.get("/gates", async (req, res) => {
   try {
-    const gateNames = await getAllGateName();
-    res.status(200).json({ data: gateNames });
+    const gates = await getAllGateName();
+    res.status(200).json({ data: gates });
   } catch (error) {
-    console.error("Error fetching gate names:", error);
-    res.status(500).json({ message: "Failed to fetch gate names" });
+    console.error("Error fetching gates:", error);
+    res.status(500).json({ error: "Failed to fetch gates" });
+  }
+});
+
+// GET - Ambil status gate tertentu
+app.get("/gates/:gateId", async (req, res) => {
+  try {
+    const { gateId } = req.params;
+    const gate = await getGateStatus(gateId);
+
+    if (!gate) {
+      return res.status(404).json({ error: "Gate not found" });
+    }
+
+    res.status(200).json({ data: gate });
+  } catch (error) {
+    console.error("Error fetching gate status:", error);
+    res.status(500).json({ error: "Failed to fetch gate status" });
+  }
+});
+
+// POST - Set status gate (open/close)
+app.post("/gates/:gateId/control", authenticateToken, async (req, res) => {
+  try {
+    const { gateId } = req.params;
+    const { action } = req.body; // "open" atau "close"
+
+    // Validasi action
+    if (!action || !["open", "close"].includes(action.toLowerCase())) {
+      return res
+        .status(400)
+        .json({ error: "Invalid action. Use 'open' or 'close'" });
+    }
+
+    // Validasi role user
+    const userRole = req.user.role || "admin"; // Dari JWT token
+    if (userRole !== "admin" && userRole !== "operator") {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    // Set gate status
+    const status = action.toLowerCase() === "open" ? "OPEN" : "CLOSE";
+    const updatedGate = await setGateStatus(gateId, status);
+
+    // Log activity
+    console.log(`[GATE] User ${req.user.username} ${action} gate ${gateId}`);
+
+    res.status(200).json({
+      message: `Gate ${gateId} ${action} successfully`,
+      data: updatedGate,
+    });
+  } catch (error) {
+    console.error("Error controlling gate:", error);
+    res.status(500).json({ error: "Failed to control gate" });
+  }
+});
+
+// POST - Emergency action (open/close all gates)
+app.post("/gates/emergency/:action", authenticateToken, async (req, res) => {
+  try {
+    const { action } = req.params; // "open-all" atau "close-all"
+
+    // Validasi action
+    if (!["open-all", "close-all"].includes(action)) {
+      return res.status(400).json({ error: "Invalid action" });
+    }
+
+    // Validasi role - hanya admin
+    const userRole = req.user.role || "admin";
+    if (userRole !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Admin access required for emergency actions" });
+    }
+
+    // Ambil semua gate
+    const gates = await getAllGateName();
+    const status = action === "open-all" ? "OPEN" : "CLOSE";
+
+    // Update semua gate
+    const results = await Promise.all(
+      gates.map((gate) => setGateStatus(gate.id, status))
+    );
+
+    // Log activity
+    console.log(
+      `[GATE EMERGENCY] User ${req.user.username} executed ${action}`
+    );
+
+    res.status(200).json({
+      message: `All gates ${
+        action === "open-all" ? "opened" : "closed"
+      } successfully`,
+      data: results,
+    });
+  } catch (error) {
+    console.error("Error in emergency gate control:", error);
+    res.status(500).json({ error: "Failed to execute emergency action" });
   }
 });
 
