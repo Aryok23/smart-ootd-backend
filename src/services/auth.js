@@ -11,6 +11,7 @@ async function loginUser(username, password) {
       "SELECT * FROM admins WHERE username = $1 AND password = $2",
       [username, password]
     );
+    console.log("query_result: ", result);
     if (result.rows.length > 0) {
       return { success: true, user: result.rows[0] };
     } else {

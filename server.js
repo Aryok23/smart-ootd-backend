@@ -201,14 +201,47 @@ app.delete("/logs/:id", async (req, res) => {
 app.post("/auth/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    // Implement login logic here
-    await loginUser(username, password);
-    res.status(200).json({ message: "Login successful" });
+
+    // Validasi input
+    if (!username || !password) {
+      return res
+        .status(400)
+        .json({ error: "Username and password are required" });
+    }
+
+    // Login user
+    const result = await loginUser(username, password);
+    console.log("Login result:", result);
+    // Cek apakah login berhasil
+    if (!result.success) {
+      return res
+        .status(401)
+        .json({ error: result.message || "Invalid credentials" });
+    }
+
+    // Generate token (untuk sekarang pakai token sederhana, nanti bisa pakai JWT)
+    const token = generateSimpleToken(result.user.id, result.user.username);
+
+    // Kirim response sukses dengan token dan role
+    res.status(200).json({
+      token: token,
+      role: result.user.role || "admin", // Sesuaikan dengan kolom role di database
+      message: "Login successful",
+    });
   } catch (error) {
     console.error("Error during login:", error);
-    res.status(500).json({ message: "Login failed" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Fungsi helper untuk generate token sederhana
+// Nanti bisa diganti dengan JWT
+function generateSimpleToken(userId, username) {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2);
+  return `${userId}-${username}-${timestamp}-${randomStr}`;
+}
+
 // --- Gate API ENDPOINTS ---
 app.get("/gates/names", async (req, res) => {
   try {
