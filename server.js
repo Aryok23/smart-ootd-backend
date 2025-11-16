@@ -21,13 +21,20 @@ import {
 } from "./src/services/gate.js";
 import mqtt from "mqtt";
 import { publishToMqtt } from "./src/mqtt/mqttPublisher.js";
+import {
+  generateJWTToken,
+  verifyJWTToken,
+  authenticateToken,
+} from "./src/middleware/auth.handler.js";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/" });
-
+import dotenv from "dotenv";
+dotenv.config();
 app.use(cors());
 app.use(express.json()); // parse JSON body
 
+// ========================================
 // --- Helper untuk broadcast ke semua client WebSocket ---
 function broadcast(message) {
   wss.clients.forEach((client) => {
@@ -212,6 +219,7 @@ app.post("/auth/login", async (req, res) => {
     // Login user
     const result = await loginUser(username, password);
     console.log("Login result:", result);
+
     // Cek apakah login berhasil
     if (!result.success) {
       return res
@@ -219,13 +227,18 @@ app.post("/auth/login", async (req, res) => {
         .json({ error: result.message || "Invalid credentials" });
     }
 
-    // Generate token (untuk sekarang pakai token sederhana, nanti bisa pakai JWT)
-    const token = generateSimpleToken(result.user.id, result.user.username);
+    // Generate JWT token
+    const token = generateJWTToken(
+      result.user.id,
+      result.user.username,
+      result.user.email
+    );
 
-    // Kirim response sukses dengan token dan role
+    // Kirim response sukses
     res.status(200).json({
       token: token,
-      role: result.user.role || "admin", // Sesuaikan dengan kolom role di database
+      username: result.user.username,
+      email: result.user.email,
       message: "Login successful",
     });
   } catch (error) {
