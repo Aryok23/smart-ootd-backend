@@ -46,13 +46,15 @@ function broadcast(message) {
 // ========================================
 // --- MQTT SETUP ---
 // ========================================
+import client from "./src/mqtt/mqttConnect.js";
 const MQTT_URL = process.env.MQTT_URL;
-const mqttClient = mqtt.connect(MQTT_URL, {
-  clientID: "ootd-backend-" + Math.random().toString(16).substr(2, 6),
-  keepalive: 30,
-  reconnectPeriod: 1000,
-  clean: true,
-});
+const mqttClient = client;
+// mqtt.connect(MQTT_URL, {
+//   clientID: "ootd-backend-" + Math.random().toString(16).substr(2, 6),
+//   keepalive: 30,
+//   reconnectPeriod: 1000,
+//   clean: true,
+// });
 
 // --- Helper untuk timestamp ---
 function logWithTime(...args) {
@@ -220,7 +222,7 @@ app.post("/auth/login", async (req, res) => {
     const result = await loginUser(username, password);
     console.log("Login result:", result);
 
-    // Cek apakah login berhasil
+    // Cek apakah login bpubliserhasil
     if (!result.success) {
       return res
         .status(401)

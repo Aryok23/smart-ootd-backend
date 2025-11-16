@@ -32,7 +32,7 @@ async function setGateStatus(gateId, status) {
           RETURNING *`,
       [status, gateId]
     );
-    publishToMqtt("smart-ootd/gate/status", { gateId: gateId, status: status });
+    publishToMqtt("smart-ootd/servo/cmd", { msg: `SERVO:${gateId}:${status}` });
     return result.rows[0];
   } catch (err) {
     console.error("setGateStatus error:", err.message);

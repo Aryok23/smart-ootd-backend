@@ -1,37 +1,39 @@
 // mqttPublisher.js
 import mqtt from "mqtt";
+import client from "./mqttConnect.js";
 
 // ===============================
 // Konfigurasi MQTT
 // ===============================
-const options = {
-  clientId: "smart-ootd-publisher-" + Math.random().toString(16).slice(2),
-  clean: true,
-  connectTimeout: 4000,
-  reconnectPeriod: 2000,
-};
+// const options = {
+//   clientId: "smart-ootd-publisher-" + Math.random().toString(16).slice(2),
+//   clean: true,
+//   keepalive: 30,
+//   connectTimeout: 4000,
+//   reconnectPeriod: 1000,
+// };
 
-const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
-const client = mqtt.connect(brokerUrl, options);
+// const brokerUrl = process.env.MQTT_URL || "mqtt://localhost:1883";
+// const client = mqtt.connect(brokerUrl, options);
 
 // ===============================
 // Logging event koneksi
 // ===============================
-client.on("connect", () => {
-  console.log("[MQTT] ✅ Connected to broker:", brokerUrl);
-});
+// client.on("connect", () => {
+//   console.log("[MQTT] ✅ Connected to broker:", brokerUrl);
+// });
 
-client.on("reconnect", () => {
-  console.log("[MQTT] 🔄 Reconnecting...");
-});
+// client.on("reconnect", () => {
+//   console.log("[MQTT] 🔄 Reconnecting...");
+// });
 
-client.on("error", (err) => {
-  console.error("[MQTT] ❌ Connection error:", err.message);
-});
+// client.on("error", (err) => {
+//   console.error("[MQTT] ❌ Connection error:", err.message);
+// });
 
-client.on("close", () => {
-  console.warn("[MQTT] ⚠️ Connection closed.");
-});
+// client.on("close", () => {
+//   console.warn("[MQTT] ⚠️ Connection closed.");
+// });
 
 // ===============================
 // Fungsi utilitas publish canggih
