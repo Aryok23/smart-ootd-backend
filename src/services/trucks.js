@@ -111,13 +111,14 @@ async function deleteTruckById(id_truk) {
 async function manualMeasure(nomorKendaraan) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE nomor_kendaraan = $1",
+      // "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE nomor_kendaraan = $1",
+      "SELECT * FROM truk_master WHERE nomor_kendaraan = $1",
       [nomorKendaraan]
     );
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
     console.log("Truck Data for Manual Measure: ", result.rows[0]);
-    publishToMqtt(`smart-ootd/truk/manual/`, result.rows[0]);
+    publishToMqtt(`smart-ootd/truk/response`, result.rows[0]);
     return result.rows[0];
   } catch (err) {
     console.error(

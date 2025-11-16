@@ -56,21 +56,24 @@ export async function publishToMqtt(
 
   // Validasi JSON
   let message;
-  try {
-    message = JSON.stringify(payload);
-    console.log("Payload: ", payload);
-    console.log("Message: ", message);
-  } catch (e) {
-    console.error("[MQTT] ❌ Payload bukan JSON valid:", e.message);
-    return;
+  // Jika payload STRING → kirim apa adanya
+  if (typeof payload === "string") {
+    message = payload;
+  } else {
+    // Jika payload OBJECT → JSON.stringify
+    try {
+      message = JSON.stringify(payload);
+    } catch (e) {
+      console.error("[MQTT] ❌ Payload bukan JSON valid:", e.message);
+      return;
+    }
   }
 
-  // Publish ke broker
   client.publish(topic, message, options, (err) => {
     if (err) {
       console.error(`[MQTT] ❌ Gagal publish ke ${topic}:`, err.message);
     } else {
-      console.log(`[MQTT] 📤 Published ${brokerUrl} ke ${topic}:`, message);
+      console.log(`[MQTT] 📤 Published ke ${topic}:`, message);
     }
   });
 }
