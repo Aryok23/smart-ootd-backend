@@ -33,7 +33,7 @@ async function getTruckById(id_truk) {
       "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE truk_id = $1",
       [id_truk]
     );
-    return {};
+    return result.rows[0];
   } catch (err) {
     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
     throw new Error("Failed to fetch truck by ID");
@@ -53,7 +53,7 @@ async function insertTruck({
     const result = await pool.query(
       `INSERT INTO truk_master (id_truk, kategori, batas_berat, batas_panjang, batas_lebar, batas_tinggi)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+       RETURNING *  `,
       [id_truk, kategori, batas_berat, batas_panjang, batas_lebar, batas_tinggi]
     );
     return result.rows[0];
@@ -106,14 +106,23 @@ async function deleteTruckById(id_truk) {
 async function manualMeasure(nomorKendaraan) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE nomor_kendaraan = $1",
+      // "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE nomor_kendaraan = $1",
+      "SELECT * FROM truk_master tm WHERE nomor_kendaraan = $1",
       [nomorKendaraan]
     );
+    const payload = {
+      id_truk: result.rows[0].truk_id,
+      kategori: result.rows[0].class_id,
+      batas_berat: result.rows[0].max_berat,
+      batas_panjang: result.rows[0].panjang_kir,
+      batas_lebar: result.rows[0].lebar_kir,
+      batas_tinggi: result.rows[0].tinggi_kir,
+    };
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
-    console.log("Truck Data for Manual Measure: ", result.rows[0]);
-    publishToMqtt(`smart-ootd/truk/manual/`, result.rows[0]);
-    return result.rows[0];
+    console.log("Truck Data for Manual Measure: ", payload);
+    publishToMqtt(`smart-ootd/truk/manual/`, payload);
+    return payload;
   } catch (err) {
     console.error(
       `manualMeasure error (nomorKendaraan: ${nomorKendaraan}):`,

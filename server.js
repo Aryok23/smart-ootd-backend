@@ -37,9 +37,17 @@ app.use(express.json()); // parse JSON body
 // ========================================
 // --- Helper untuk broadcast ke semua client WebSocket ---
 function broadcast(message) {
+  let payload;
+
+  if (typeof message === "string") {
+    payload = message;
+  } else {
+    payload = JSON.stringify(message);
+  }
+
   wss.clients.forEach((client) => {
     if (client.readyState === 1) {
-      client.send(JSON.stringify(message));
+      client.send(payload);
     }
   });
 }
@@ -65,8 +73,27 @@ function logWithTime(...args) {
 // --- MQTT Handlers ---
 const mqttHandlers = {
   "smart-ootd/truk/request": async (payload) => {
-    logWithTime("📥 [MQTT] Insert Log:", payload);
+    logWithTime("📥 [MQTT] Truck Request:", payload);
     const newLog = await getTruckById(payload);
+    if (!truk) {
+      logWithTime(`❌ Truck with ID ${payload.id_truk} not found`);
+      publishToMqtt("smart-ootd/truk/response", {
+        error: "Truck not found",
+        id_truk: payload.id_truk,
+      });
+      return;
+    }
+
+    const response = {
+      id_truk: newLog.truk_id,
+      kategori: newLog.class_id,
+      batas_berat: newLog.max_berat,
+      batas_panjang: newLog.panjang_kir,
+      batas_lebar: newLog.lebar_kir,
+      batas_tinggi: newLog.tinggi_kir,
+    };
+
+    publishToMqtt("smart-ootd/truk/response", response);
     logWithTime("🚛 [MQTT] Truck Limits:", newLog);
   },
 
@@ -74,7 +101,7 @@ const mqttHandlers = {
     logWithTime("🗑 [MQTT] Insert Log:", payload);
     const insertedLog = await insertLogger(payload);
     logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
-    broadcast({ type: "update", data: payload });
+    // broadcast({ type: "update", data: payload });
   },
 
   // "truck/manual": async (payload) => {
@@ -346,7 +373,7 @@ app.post("/gates/emergency/:action", authenticateToken, async (req, res) => {
 
     // Update semua gate
     const results = await Promise.all(
-      gates.map((gate) => setGateStatus(gate.id, status))
+      gates.map((gate) => setGateStatus((gate.id = "ALL"), status))
     );
 
     // Log activity

@@ -18,24 +18,37 @@ async function getAllGateName() {
 
 // function for open/close gate manually
 async function setGateStatus(gateId, status) {
+  let result;
   try {
-    // Update status in database
-    const result = await pool.query(
-      `UPDATE gates 
+    if (gateId != "ALL") {
+      // Update status in database
+      result = await pool.query(
+        `UPDATE gates 
        SET gate_status = $1 
-       WHERE gate_name = $2 
+       WHERE gate_id = $2 
        RETURNING *`,
-      [status, gateId]
-    );
+        [status, gateId]
+      );
 
-    if (result.rows.length === 0) {
-      throw new Error(`Gate ${gateId} not found`);
+      if (result.rows.length === 0) {
+        throw new Error(`Gate ${gateId} not found`);
+      }
+    } else {
+      // Handle the case when gateId is "ALL"
+      result = await pool.query(
+        `UPDATE gates 
+       SET gate_status = $1 
+       RETURNING *`,
+        [status]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error(`No gates found`);
+      }
     }
 
     // Publish ke MQTT setelah database berhasil diupdate
-    await publishToMqtt("smart-ootd/servo/cmd", {
-      msg: `SERVO:${gateId}:${status}`,
-    });
+    await publishToMqtt("smart-ootd/servo/cmd", `SERVO:${gateId}:${status}`);
 
     console.log(`[GATE] ${gateId} set to ${status}`);
 

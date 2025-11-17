@@ -6,6 +6,7 @@ const app = express();
 const server = http.createServer(app);
 
 import { Server } from "socket.io";
+import { getTruckById } from "./trucks.js";
 const io = new Server(server, {
   cors: {
     origin: "*", // nanti ubah ke domain frontend kamu
@@ -39,11 +40,18 @@ async function insertLogger({
         waktu_selesai,
       ]
     );
+    const truckData = await getTruckById(id_truk);
+    // merge result with truckData
+    const mergedData = result.rows.map((row) => ({
+      ...row,
+      ...truckData,
+    }));
+    console.log("Merged data for logger:", mergedData);
 
     console.log("insertLogger result:", result.rows);
 
     // const row = result.rows[0];
-    const newLog = result.rows.map((row) => {
+    const newLog = mergedData.map((row) => {
       return {
         id: row.id,
         timestamp: row.timestamp,
@@ -137,12 +145,14 @@ async function getAllLogs() {
 
 async function getLatestLog() {
   try {
+    //   const query = `SELECT id, timestamp, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
+    // FROM truk_logger tl
+    // JOIN truk_master tm on tl.truk_id = tm.truk_id
+    // ORDER BY timestamp DESC
+    // LIMIT 1;`;
+
     const result = await pool.query(
-      `SELECT id, timestamp, gateId, tl.truk_id, max_panjang, max_lebar, max_tinggi, max_berat, status, berat, tinggi, panjang, lebar
-	FROM truk_logger tl
-	JOIN truk_master tm on tl.truk_id = tm.truk_id
-	ORDER BY timestamp DESC
-  LIMIT 1;`
+      `SELECT * FROM truk_full_log ORDER BY timestamp DESC LIMIT 1;`
     );
     console.log("getLatestLog result:", result.rows);
     const row = result.rows[0];
