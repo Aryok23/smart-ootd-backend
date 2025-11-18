@@ -96,7 +96,7 @@ const mqttHandlers = {
     console.log("Fetched truck data:", newLog);
     if (!newLog) {
       logWithTime(`❌ Truck with ID ${payload.id_truk} not found`);
-      publishToMqtt("smart-ootd/truck/response", `NOT_FOUND,${truckId}`);
+      publishToMqtt("smart-ootd/truk/response", `NOT_FOUND,${truckId}`);
       return;
     }
 
