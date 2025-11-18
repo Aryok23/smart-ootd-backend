@@ -91,14 +91,12 @@ const mqttHandlers = {
     if (typeof payload === "string") {
       payload = JSON.parse(payload);
     }
-    const newLog = await getTruckById(payload.id_truk);
+    const truckId = payload.id_truk;
+    const newLog = await getTruckById(truckId);
     console.log("Fetched truck data:", newLog);
     if (!newLog) {
       logWithTime(`❌ Truck with ID ${payload.id_truk} not found`);
-      publishToMqtt("smart-ootd/truk/response", {
-        error: "Truck not found",
-        id_truk: payload.id_truk,
-      });
+      publishToMqtt("smart-ootd/truck/response", `NOT_FOUND,${truckId}`);
       return;
     }
 
@@ -111,27 +109,21 @@ const mqttHandlers = {
       batas_tinggi: newLog.tinggi_kir,
       waktu_mulai: new Date().toISOString(),
     };
-
     publishToMqtt("smart-ootd/truk/response", response);
     logWithTime("🚛 [MQTT] Truck Limits:", newLog);
   },
 
   "smart-ootd/truk/result": async (payload) => {
     logWithTime("🗑 [MQTT] Insert Log:", payload);
+
     if (typeof payload === "string") payload = JSON.parse(payload);
 
     const insertedLog = await insertLogger(payload);
+
     broadcast({ type: "update", data: insertedLog });
 
     logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
-    // broadcast({ type: "update", data: payload });
   },
-
-  // "truck/manual": async (payload) => {
-  //   console.log("⚙️ [MQTT] Manual Measure:", payload.nomorKendaraan);
-  //   await manualMeasure(payload.nomorKendaraan);
-  //   broadcast({ type: "manual", data: payload });
-  // },
 };
 
 // --- Connect to Subscription Topics ---
