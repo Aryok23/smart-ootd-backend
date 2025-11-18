@@ -122,7 +122,7 @@ async function manualMeasure(nomorKendaraan) {
     };
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
-    publishToMqtt(`smart-ootd/truk/manual`, payload);
+    publishToMqtt(`smart-ootd/truk/response`, payload);
 
     console.log("Truck Data for Manual Measure: ", payload);
     return payload;
