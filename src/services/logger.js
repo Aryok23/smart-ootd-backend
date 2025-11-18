@@ -41,8 +41,8 @@ async function insertLogger({
         1,
       ]
     );
-    const loggerId = insertResult.rows[0].id;
-    const trukId = insertResult.rows[0].truk_id;
+    const loggerId = result.rows[0].id;
+    const trukId = result.rows[0].truk_id;
 
     await pool.query(
       `
