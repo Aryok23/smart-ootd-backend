@@ -26,9 +26,19 @@ async function insertLogger({
 }) {
   try {
     const result = await pool.query(
-      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai, gate_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9 )
-       RETURNING *`,
+      `WITH inserted AS (
+        INSERT INTO truk_logger (
+          truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai, gate_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *
+      )
+      UPDATE truk_logger tl
+      SET lebar = tm.lebar_kir
+      FROM truk_master tm, inserted i
+      WHERE tl.id = i.id AND tm.id = i.truk_id
+      RETURNING tl.*;
+      `,
       [
         id_truk,
         berat_aktual,
