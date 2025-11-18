@@ -16,9 +16,12 @@
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "googleapis": "^166.0.0",
     "jsonwebtoken": "^9.0.2",
     "mqtt": "^5.14.1",
+    "pdfkit": "^0.17.2",
     "pg": "^8.16.3",
+    "puppeteer": "^24.30.0",
     "socket.io": "^4.8.1",
     "ws": "^8.18.3"
   },

@@ -26,8 +26,8 @@ async function insertLogger({
 }) {
   try {
     const result = await pool.query(
-      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO truk_logger(truk_id, berat, panjang, lebar, tinggi, status, waktu_mulai, waktu_selesai, gate_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9 )
        RETURNING *`,
       [
         id_truk,
@@ -37,21 +37,18 @@ async function insertLogger({
         tinggi_aktual,
         status,
         waktu_mulai,
-        waktu_selesai,
+        (waktu_selesai = new Date().toISOString()),
+        1,
       ]
     );
-    const truckData = await getTruckById(id_truk);
-    // merge result with truckData
-    const mergedData = result.rows.map((row) => ({
-      ...row,
-      ...truckData,
-    }));
-    console.log("Merged data for logger:", mergedData);
+    console.log("Logger inserted to DB:", result.rows[0]);
+    const loggerData = await pool.query(
+      `SELECT * FROM truk_full_log WHERE id = $1`,
+      [result.rows[0].id]
+    );
+    console.log("insertLogger result:", loggerData.rows);
 
-    console.log("insertLogger result:", result.rows);
-
-    // const row = result.rows[0];
-    const newLog = mergedData.map((row) => {
+    const newLog = loggerData.rows.map((row) => {
       return {
         id: row.id,
         timestamp: row.timestamp,
@@ -83,11 +80,6 @@ async function insertLogger({
     });
 
     console.log("New log to emit:", newLog);
-
-    if (io) {
-      io.emit("new_log", newLog);
-    }
-
     return newLog;
   } catch (err) {
     console.error("insertLogger error:", err.message);

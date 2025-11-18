@@ -30,9 +30,10 @@ async function getAllTrucks() {
 async function getTruckById(id_truk) {
   try {
     const result = await pool.query(
-      "SELECT * FROM truk_master tm JOIN vehicle_class vc ON tm.class_id = vc.class_id WHERE truk_id = $1",
+      "SELECT * FROM truk_master tm WHERE truk_id = $1",
       [id_truk]
     );
+
     return result.rows[0];
   } catch (err) {
     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
@@ -112,16 +113,18 @@ async function manualMeasure(nomorKendaraan) {
     );
     const payload = {
       id_truk: result.rows[0].truk_id,
-      kategori: result.rows[0].class_id,
+      kelas: result.rows[0].class_id,
       batas_berat: result.rows[0].max_berat,
       batas_panjang: result.rows[0].panjang_kir,
       batas_lebar: result.rows[0].lebar_kir,
       batas_tinggi: result.rows[0].tinggi_kir,
+      waktu_mulai: new Date().toISOString(),
     };
 
     // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
+    publishToMqtt(`smart-ootd/truk/manual`, payload);
+
     console.log("Truck Data for Manual Measure: ", payload);
-    publishToMqtt(`smart-ootd/truk/manual/`, payload);
     return payload;
   } catch (err) {
     console.error(

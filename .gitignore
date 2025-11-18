@@ -37,4 +37,7 @@ Thumbs.db
 .vscode
 .idea
 
-alpine-practice-478506-f3-f990d32fc981.json
+src/config/alpine-practice-478506-f3-f990d32fc981.json
+src/config/tactical-orbit-474415-v1-8f7482ab56fd.json
+# all file in temp folder
+temp/*

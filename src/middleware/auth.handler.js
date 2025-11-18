@@ -8,19 +8,27 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 
 // Fungsi untuk generate JWT token
-function generateJWTToken(userId, username, email) {
+function generateJWTToken(
+  userId,
+  username,
+  email,
+  role = "admin",
+  rememberMe = false
+) {
   const payload = {
     id: userId,
     username: username,
     email: email,
-    iat: Math.floor(Date.now() / 1000), // Issued at
+    role: role,
+    iat: Math.floor(Date.now() / 1000),
   };
 
-  const token = jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  // Jika remember me: 30 hari, jika tidak: 24 jam
+  const expiresIn = rememberMe ? "30d" : JWT_EXPIRES_IN;
 
-  return token;
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: expiresIn,
+  });
 }
 
 // Fungsi untuk verify JWT token (untuk middleware authentication)

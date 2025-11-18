@@ -26,6 +26,19 @@ import {
   verifyJWTToken,
   authenticateToken,
 } from "./src/middleware/auth.handler.js";
+import { generatePDFReport } from "./src/services/pdfGenerator.js";
+import {
+  ensureTempFolderExists,
+  generateFileName,
+  checkFileExists,
+  getFilePath,
+  listAllReports,
+  deleteFile,
+  cleanupOldFiles,
+} from "./src/services/fileManager.js";
+
+ensureTempFolderExists();
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/" });
@@ -74,8 +87,13 @@ function logWithTime(...args) {
 const mqttHandlers = {
   "smart-ootd/truk/request": async (payload) => {
     logWithTime("📥 [MQTT] Truck Request:", payload);
-    const newLog = await getTruckById(payload);
-    if (!truk) {
+    // if payload is string, convert to object
+    if (typeof payload === "string") {
+      payload = JSON.parse(payload);
+    }
+    const newLog = await getTruckById(payload.id_truk);
+    console.log("Fetched truck data:", newLog);
+    if (!newLog) {
       logWithTime(`❌ Truck with ID ${payload.id_truk} not found`);
       publishToMqtt("smart-ootd/truk/response", {
         error: "Truck not found",
@@ -86,11 +104,12 @@ const mqttHandlers = {
 
     const response = {
       id_truk: newLog.truk_id,
-      kategori: newLog.class_id,
+      kelas: newLog.class_id,
       batas_berat: newLog.max_berat,
       batas_panjang: newLog.panjang_kir,
       batas_lebar: newLog.lebar_kir,
       batas_tinggi: newLog.tinggi_kir,
+      waktu_mulai: new Date().toISOString(),
     };
 
     publishToMqtt("smart-ootd/truk/response", response);
@@ -99,7 +118,11 @@ const mqttHandlers = {
 
   "smart-ootd/truk/result": async (payload) => {
     logWithTime("🗑 [MQTT] Insert Log:", payload);
+    if (typeof payload === "string") payload = JSON.parse(payload);
+
     const insertedLog = await insertLogger(payload);
+    broadcast({ type: "update", data: insertedLog });
+
     logWithTime("✅ [MQTT] Log Inserted:", insertedLog);
     // broadcast({ type: "update", data: payload });
   },
@@ -183,7 +206,7 @@ app.post("/truck/manual/:nomorKendaraan", async (req, res) => {
   try {
     const nomorKendaraan = req.params.nomorKendaraan;
     // Implement manual truck ID input logic here
-    await manualMeasure(nomorKendaraan);
+    const truckID = await manualMeasure(nomorKendaraan);
 
     res.status(200).json({
       message: `Manual truck ID ${nomorKendaraan} processed successfully`,
@@ -236,38 +259,38 @@ app.delete("/logs/:id", async (req, res) => {
 // --- Endpoint HTTP untuk login ---
 app.post("/auth/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, rememberMe } = req.body; // ✅ Terima rememberMe
 
-    // Validasi input
     if (!username || !password) {
       return res
         .status(400)
         .json({ error: "Username and password are required" });
     }
 
-    // Login user
     const result = await loginUser(username, password);
     console.log("Login result:", result);
 
-    // Cek apakah login bpubliserhasil
     if (!result.success) {
       return res
         .status(401)
         .json({ error: result.message || "Invalid credentials" });
     }
 
-    // Generate JWT token
+    // Generate JWT token dengan rememberMe
     const token = generateJWTToken(
       result.user.id,
       result.user.username,
-      result.user.email
+      result.user.email,
+      "admin",
+      rememberMe || false
     );
 
-    // Kirim response sukses
     res.status(200).json({
       token: token,
+      role: "admin",
       username: result.user.username,
       email: result.user.email,
+      expiresIn: rememberMe ? "30 days" : process.env.JWT_EXPIRES_IN, // Info untuk client
       message: "Login successful",
     });
   } catch (error) {
@@ -276,13 +299,42 @@ app.post("/auth/login", async (req, res) => {
   }
 });
 
-// Fungsi helper untuk generate token sederhana
-// Nanti bisa diganti dengan JWT
-function generateSimpleToken(userId, username) {
-  const timestamp = Date.now();
-  const randomStr = Math.random().toString(36).substring(2);
-  return `${userId}-${username}-${timestamp}-${randomStr}`;
-}
+// ENDPOINT LOGOUT
+app.post("/auth/logout", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    // hapus TOKEN dari cookie
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+    res.status(200).json({ message: "Logout successful" });
+  } catch (error) {
+    console.error("Error during logout:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+//
+app.get("/auth/me", authenticateToken, async (req, res) => {
+  try {
+    // Data ini berasal dari payload JWT
+    const userData = {
+      id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+      role: req.user.role || "admin", // ✅ Fallback jika tidak ada
+    };
+
+    res.json({
+      success: true,
+      user: userData, // ✅ Data ada di dalam "user"
+    });
+  } catch (err) {
+    console.error("Error /auth/me:", err);
+    res.status(500).json({ error: "Terjadi kesalahan server" });
+  }
+});
 
 // --- Gate API ENDPOINTS ---
 // GET - Ambil semua gate dan statusnya
@@ -390,6 +442,152 @@ app.post("/gates/emergency/:action", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Error in emergency gate control:", error);
     res.status(500).json({ error: "Failed to execute emergency action" });
+  }
+});
+
+// POST - Generate PDF Report (atau kirim yang sudah ada)
+app.post("/reports/generate", authenticateToken, async (req, res) => {
+  try {
+    const logData = req.body;
+
+    // Validasi data
+    if (!logData.id || !logData.vehicleId) {
+      return res.status(400).json({ error: "Invalid log data" });
+    }
+
+    // Generate nama file berdasarkan data log
+    const fileName = generateFileName(logData);
+    const filePath = getFilePath(fileName);
+
+    // Cek apakah file sudah ada
+    if (checkFileExists(fileName)) {
+      // File sudah ada, langsung kirim info file
+      console.log("📄 File already exists, skipping generation");
+
+      return res.status(200).json({
+        message: "Report already exists",
+        file: {
+          name: fileName,
+          path: `/reports/download/${fileName}`,
+          exists: true,
+        },
+      });
+    }
+
+    // File belum ada, generate baru
+    console.log("📄 Generating new PDF report...");
+    await generatePDFReport(logData, filePath);
+
+    res.status(201).json({
+      message: "Report generated successfully",
+      file: {
+        name: fileName,
+        path: `/reports/download/${fileName}`,
+        exists: false,
+      },
+    });
+  } catch (error) {
+    console.error("Error generating report:", error);
+    res.status(500).json({ error: "Failed to generate report" });
+  }
+});
+
+// GET - Download PDF Report
+app.get("/reports/download/:fileName", authenticateToken, async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const filePath = getFilePath(fileName);
+
+    // Cek apakah file ada
+    if (!checkFileExists(fileName)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Tambahkan header CORS agar file bisa di-download dari frontend
+    res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+
+    console.log(`📥 Sending file: ${fileName}`);
+
+    res.download(filePath, fileName, (err) => {
+      if (err) {
+        console.error("Error sending file:", err);
+        // Hanya boleh mengganti header ketika error BELUM mengirim response
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Failed to download file" });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error downloading report:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to download report" });
+    }
+  }
+});
+
+// GET - List all reports
+app.get("/reports/list", authenticateToken, async (req, res) => {
+  try {
+    const reports = listAllReports();
+
+    res.status(200).json({
+      message: "Reports retrieved successfully",
+      count: reports.length,
+      reports: reports.map((report) => ({
+        name: report.name,
+        size: `${(report.size / 1024).toFixed(2)} KB`,
+        created: report.created,
+        modified: report.modified,
+        downloadUrl: `/reports/download/${report.name}`,
+      })),
+    });
+  } catch (error) {
+    console.error("Error listing reports:", error);
+    res.status(500).json({ error: "Failed to list reports" });
+  }
+});
+
+// DELETE - Delete specific report
+app.delete("/reports/delete/:fileName", authenticateToken, async (req, res) => {
+  try {
+    const { fileName } = req.params;
+
+    if (!checkFileExists(fileName)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const deleted = deleteFile(fileName);
+
+    if (deleted) {
+      res.status(200).json({
+        message: "Report deleted successfully",
+        fileName,
+      });
+    } else {
+      res.status(500).json({ error: "Failed to delete report" });
+    }
+  } catch (error) {
+    console.error("Error deleting report:", error);
+    res.status(500).json({ error: "Failed to delete report" });
+  }
+});
+
+// POST - Cleanup old files
+app.post("/reports/cleanup", authenticateToken, async (req, res) => {
+  try {
+    const { days = 7 } = req.body;
+    const deletedCount = cleanupOldFiles(days);
+
+    res.status(200).json({
+      message: "Cleanup completed successfully",
+      deletedCount,
+      daysThreshold: days,
+    });
+  } catch (error) {
+    console.error("Error cleaning up files:", error);
+    res.status(500).json({ error: "Failed to cleanup files" });
   }
 });
 
