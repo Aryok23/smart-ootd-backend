@@ -38,9 +38,9 @@ async function getTruckById(id_truk) {
       "SELECT * FROM truk_master tm WHERE truk_id = $1",
       [id_truk]
     );
-    if (localRes.rows.length > 0) {
+    if (result.rows.length > 0) {
       console.log("Cache HIT (local truck)");
-      return localRes.rows[0];
+      return result.rows[0];
     }
     // if MISS, fetch from online backend
     console.log("Cache MISS → Fetching online backend...");
@@ -136,20 +136,46 @@ async function manualMeasure(nomorKendaraan) {
       "SELECT * FROM truk_master tm WHERE nomor_kendaraan = $1",
       [nomorKendaraan]
     );
-    const payload = {
-      id_truk: result.rows[0].truk_id,
-      kelas: result.rows[0].class_id,
-      batas_berat: result.rows[0].max_berat,
-      batas_panjang: result.rows[0].panjang_kir,
-      batas_lebar: result.rows[0].lebar_kir,
-      batas_tinggi: result.rows[0].tinggi_kir,
-      waktu_mulai: new Date().toISOString(),
-    };
+    // HIT local DB
+    if (result.rows.length > 0) {
+      console.log("Cache HIT (local truck)");
 
-    // PUBLISH TO MQTT TOPIC or EMIT SOCKET EVENT
-    publishToMqtt(`smart-ootd/truk/response`, payload);
+      const row = result.rows[0];
+      const payload = buildPayload(row);
 
-    console.log("Truck Data for Manual Measure: ", payload);
+      publishToMqtt("smart-ootd/truk/response", payload);
+      console.log("Truck Data (HIT): ", payload);
+
+      return payload;
+    }
+
+    // if MISS, fetch from online backend
+    console.log("Cache MISS → Fetching from online backend...");
+    const onlineTruck = await fetchTruckFromOnline(nomorKendaraan);
+
+    if (!onlineTruck) {
+      console.log(
+        `Truck with Nomor Kendaraan ${nomorKendaraan} NOT FOUND (local & online)`
+      );
+
+      publishToMqtt("smart-ootd/truk/response", `NOT_FOUND,${nomorKendaraan}`);
+
+      return null;
+    }
+
+    // --- Before inserting truck → ensure class exists
+    if (onlineTruck.vehicle_class) {
+      await ensureVehicleClassExists(onlineTruck.vehicle_class);
+    }
+
+    // --- Insert truck into local DB
+    const insertedTruck = await insertTruckToLocalDB(onlineTruck);
+
+    const payload = buildPayload(insertedTruck);
+
+    publishToMqtt("smart-ootd/truk/response", payload);
+
+    console.log("Truck Data (MISS → INSERTED): ", payload);
     return payload;
   } catch (err) {
     console.error(
@@ -158,6 +184,18 @@ async function manualMeasure(nomorKendaraan) {
     );
     throw new Error("Failed to fetch truck by nomor kendaraan");
   }
+}
+
+function buildPayload(row) {
+  return {
+    id_truk: row.truk_id,
+    kelas: row.class_id,
+    batas_berat: row.max_berat,
+    batas_panjang: row.panjang_kir,
+    batas_lebar: row.lebar_kir,
+    batas_tinggi: row.tinggi_kir,
+    waktu_mulai: new Date().toISOString(),
+  };
 }
 
 export {
