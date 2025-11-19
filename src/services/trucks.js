@@ -3,7 +3,11 @@ import pool from "../config/db.js";
 import http from "http";
 const app = express();
 import { publishToMqtt } from "../mqtt/mqttPublisher.js";
-
+import {
+  fetchTruckFromOnline,
+  ensureVehicleClassExists,
+  insertTruckToLocalDB,
+} from "../helper/fetchFromOnline.js";
 const server = http.createServer(app);
 
 import { Server } from "socket.io";
@@ -29,12 +33,33 @@ async function getAllTrucks() {
 /*Ambil data truk master berdasarkan ID*/
 async function getTruckById(id_truk) {
   try {
+    // try to hit local DB first
     const result = await pool.query(
       "SELECT * FROM truk_master tm WHERE truk_id = $1",
       [id_truk]
     );
+    if (localRes.rows.length > 0) {
+      console.log("Cache HIT (local truck)");
+      return localRes.rows[0];
+    }
+    // if MISS, fetch from online backend
+    console.log("Cache MISS → Fetching online backend...");
+    const onlineTruck = await fetchTruckFromOnline(id_truk);
 
-    return result.rows[0];
+    if (!onlineTruck) {
+      console.log("Truck not found online");
+      return null;
+    }
+
+    // --- Before inserting truck → ensure class exists
+    if (onlineTruck.vehicle_class) {
+      await ensureVehicleClassExists(onlineTruck.vehicle_class);
+    }
+
+    // --- Insert truck into local DB
+    await insertTruckToLocalDB(onlineTruck);
+
+    return onlineTruck;
   } catch (err) {
     console.error(`getTruckById error (id: ${id_truk}):`, err.message);
     throw new Error("Failed to fetch truck by ID");
