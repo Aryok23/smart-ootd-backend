@@ -1,6 +1,6 @@
 import pool from "../config/db.js";
 
-export default async function fetchTruckFromOnline(id_truk) {
+export async function fetchTruckFromOnline(id_truk) {
   try {
     const response = await fetch(
       `https://smart-ootd-kemenhub-backend.vercel.app/kemenhub/truck/${id_truk}`
@@ -14,7 +14,7 @@ export default async function fetchTruckFromOnline(id_truk) {
     return null;
   }
 }
-export default async function ensureVehicleClassExists(classData) {
+export async function ensureVehicleClassExists(classData) {
   try {
     const check = await pool.query(
       "SELECT * FROM vehicle_class WHERE class_id = $1",
@@ -47,7 +47,7 @@ export default async function ensureVehicleClassExists(classData) {
     console.error("Error ensureVehicleClassExists:", err.message);
   }
 }
-export default async function insertTruckToLocalDB(truck) {
+export async function insertTruckToLocalDB(truck) {
   try {
     await pool.query(
       `
@@ -63,7 +63,7 @@ export default async function insertTruckToLocalDB(truck) {
         truck.lebar_kir,
         truck.tinggi_kir,
         truck.max_berat,
-        truck.class_id
+        truck.class_id,
       ]
     );
 
